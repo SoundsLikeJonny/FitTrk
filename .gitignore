@@ -1,0 +1,36 @@
+# Secrets
+.env
+.env.local
+.env*.local
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+node_modules
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.yarn/install-state.gz
+# platform symlink to a shared lockfile outside the project
+yarn.lock
+
+# Build output
+.next/
+.build/
+.turbo/
+out/
+dist/
+.deploy/
+*.tsbuildinfo
+next-env.d.ts
+
+# Misc
+*.log
+.logs/
+.DS_Store
+.cache/
+*.tmp
