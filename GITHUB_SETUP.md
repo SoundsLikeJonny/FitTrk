@@ -37,10 +37,9 @@ using the committed `mobile/yarn.lock`) → `npx expo prebuild --platform androi
   `FitTracker-build-<N>-debug.apk`. On Android, open the file and allow "Install unknown apps" when prompted.
 - Or **Actions → Mobile APK → (run) → Artifacts → `fittracker-debug-apk`** (a zip, kept for 30 days).
 
-**Backend URL:** the app is built with `EXPO_PUBLIC_API_URL=https://fittracker.abacusai.app` by default.
-After the web app moves to Vercel, set a repository **variable** (not a secret) named `EXPO_PUBLIC_API_URL`
-under *Settings → Secrets and variables → Actions → Variables*, e.g. `https://fittrk.vercel.app`.
-The next build will use that URL.
+**Backend URL:** by default the app is built with `EXPO_PUBLIC_API_URL=https://fit-trk.vercel.app`, the Vercel production URL.
+To point builds at a different backend, set a repository **variable** (not a secret) named `EXPO_PUBLIC_API_URL`
+under *Settings → Secrets and variables → Actions → Variables*. The next build will use that URL.
 
 Notes: a debug APK is signed with Android's standard debug key, so you can sideload it but it can't go on the Play Store.
 Adding a release keystore later means storing it as base64 secrets and running `assembleRelease`.
@@ -68,7 +67,7 @@ Adding a release keystore later means storing it as base64 secrets and running `
    |---|---|
    | `DATABASE_URL` | Postgres connection string |
    | `AUTH_SECRET` | random string: `openssl rand -base64 32` |
-   | `AUTH_URL` (and `NEXTAUTH_URL`) | your production URL, e.g. `https://fittrk.vercel.app` |
+   | `AUTH_URL` (and `NEXTAUTH_URL`) | `https://fit-trk.vercel.app` |
    | `AUTH_TRUST_HOST` | `true` |
    | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth client |
    | any others the app reads | e.g. S3/upload or LLM keys used by `/api/upload` and `/api/scan-label` |
@@ -95,11 +94,23 @@ Never commit `.vercel/` or any `.env` file. The root `.gitignore` already exclud
 
 ## 3. Domain
 
-- Every Vercel project gets a free `https://<project-name>.vercel.app` address.
+- **Production URL: `https://fit-trk.vercel.app`** (free Vercel subdomain, no registrar or renewal fees).
+
+### Google OAuth (Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 Client ID)
+
+| Setting | Value |
+|---|---|
+| Authorized JavaScript origins | `https://fit-trk.vercel.app` |
+| Authorized redirect URIs | `https://fit-trk.vercel.app/api/auth/callback/google` |
+| Authorized redirect URIs (mobile sign-in) | `https://fit-trk.vercel.app/api/mobile-auth/google/callback` |
+
+Then set `AUTH_URL` and `NEXTAUTH_URL` to `https://fit-trk.vercel.app` in Vercel and redeploy.
+
+### Optional: a custom domain later
 - To use your own domain: Vercel → Project → **Settings → Domains → Add**, then create the DNS record Vercel shows you
   at your registrar: an `A` record to `76.76.21.21` for a root domain, or a `CNAME` to `cname.vercel-dns.com` for a subdomain.
   HTTPS certificates are issued automatically.
-- **When the production URL changes, update:**
+- **If the production URL ever changes from `fit-trk.vercel.app`, update** (replace `<domain>` with the new host):
   1. `AUTH_URL` / `NEXTAUTH_URL` in Vercel env vars (then redeploy).
   2. Google OAuth client → Authorized redirect URIs: `https://<domain>/api/auth/callback/google` and
      `https://<domain>/api/mobile-auth/google/callback`. Also add `https://<domain>` under Authorized JavaScript origins.
