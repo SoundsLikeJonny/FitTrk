@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm install --no-audit --no-fund --legacy-peer-deps",
+  "buildCommand": "sed -i '/^[[:space:]]*output[[:space:]]*=.*\\.prisma\\/client\"/d' prisma/schema.prisma && prisma generate && next build"
+}
