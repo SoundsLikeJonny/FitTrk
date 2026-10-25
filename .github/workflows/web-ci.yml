@@ -1,0 +1,126 @@
+# Web app (Next.js at repo root): build check on every push/PR to main, then a production deploy
+# to Vercel on pushes to main.
+#
+# ── GitHub secrets (Settings → Secrets and variables → Actions → New repository secret) ──
+#   VERCEL_TOKEN       Vercel → Account Settings → Tokens → Create
+#   VERCEL_ORG_ID      `orgId` in .vercel/project.json after running `npx vercel link` locally
+#   VERCEL_PROJECT_ID  `projectId` in that same file
+#   If VERCEL_TOKEN is not set, the deploy job is skipped and only the build check runs.
+#
+#   Optional (the build check uses dummy values when these are missing; nothing connects to a DB here):
+#   DATABASE_URL, AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET
+#
+# ── Runtime env vars go in Vercel, NOT GitHub ──
+#   Vercel → Project → Settings → Environment Variables: DATABASE_URL, AUTH_SECRET, AUTH_URL,
+#   AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, AUTH_TRUST_HOST=true, plus any others the app reads.
+#   Vercel builds the app on its own servers (see vercel.json), so it uses those values.
+#
+# Database migrations are NOT run here. See GITHUB_SETUP.md.
+
+name: Web CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "mobile/**"
+      - "**/*.md"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "mobile/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      has_vercel: ${{ steps.vercel.outputs.enabled }}
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Real secrets if they exist, otherwise placeholder values that are only good for compiling.
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://ci:ci@localhost:5432/ci' }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'ci-build-placeholder-secret' }}
+      AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID || 'ci-placeholder' }}
+      AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET || 'ci-placeholder' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The repo has no root lockfile (yarn.lock is gitignored) and the root .yarnrc.yml points
+      # at a host-specific folder, so CI uses npm. --legacy-peer-deps tolerates React 19 peer ranges.
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      # schema.prisma sets an absolute generator `output` path that only exists on the original
+      # dev host. Remove it in CI so the client lands in the default node_modules/.prisma/client.
+      - name: Generate Prisma client
+        run: |
+          sed -i '/^[[:space:]]*output[[:space:]]*=.*\.prisma\/client"/d' prisma/schema.prisma
+          npx prisma generate
+
+      - name: Build
+        run: npm run build
+
+      - name: Check Vercel credentials
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT";
+          else echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "::notice::VERCEL_TOKEN not set; skipping deploy."; fi
+
+  deploy:
+    name: Deploy to Vercel (production)
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.outputs.has_vercel == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      # Vercel builds on its own servers using vercel.json (install/build commands) and the
+      # project's environment variables, so Prisma gets the right engine for Vercel's runtime.
+      - name: Deploy
+        id: deploy
+        run: |
+          URL=$(vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}")
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Deployed: $URL" >> "$GITHUB_STEP_SUMMARY"
