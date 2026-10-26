@@ -180,10 +180,10 @@ model FoodEntry {
 }
 
 model DailyLog {
-  id      String      @id @default(cuid())
-  userId  String
-  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date    DateTime    @db.Date
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date   DateTime @db.Date
 
   entries FoodEntry[]
 
@@ -203,17 +203,17 @@ model WeightLog {
 }
 
 model UserSettings {
-  id                    String @id @default(cuid())
-  userId                String @unique
-  user                  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  weightLb              Float  @default(165)
-  mode                  String @default("cut")
-  cutDeficit            Float  @default(250)
-  bulkSurplus           Float  @default(250)
-  calMultiplier         Float  @default(12)
-  proteinMultiplier     Float  @default(1)
-  proteinMinMultiplier  Float  @default(0.7)
-  fatMinMultiplier      Float  @default(0.3)
-  weightUnit            String @default("lb")
-  restTimerDefault      Int    @default(90)
+  id                   String @id @default(cuid())
+  userId               String @unique
+  user                 User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightLb             Float  @default(165)
+  mode                 String @default("cut")
+  cutDeficit           Float  @default(250)
+  bulkSurplus          Float  @default(250)
+  calMultiplier        Float  @default(12)
+  proteinMultiplier    Float  @default(1)
+  proteinMinMultiplier Float  @default(0.7)
+  fatMinMultiplier     Float  @default(0.3)
+  weightUnit           String @default("lb")
+  restTimerDefault     Int    @default(90)
 }
