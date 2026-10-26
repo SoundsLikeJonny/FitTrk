@@ -1,0 +1,49 @@
+# STAGED WORKFLOW — NOT ACTIVE YET.
+# The GitHub App used to create this file has no permission to write to .github/workflows/,
+# so you must copy it there yourself to enable it:
+#
+#   mkdir -p .github/workflows && cp ci/github-workflows/eas-update.yml .github/workflows/eas-update.yml
+#
+# Before it can run:
+#   1. Run `eas update:configure` locally in mobile/ and replace <EAS_PROJECT_ID> in mobile/app.json.
+#   2. Add an Expo access token as the repository secret EAS_TOKEN
+#      (expo.dev -> Account settings -> Access tokens; GitHub -> Settings -> Secrets and variables -> Actions).
+#
+# On every push to main that touches mobile/**, this publishes a new JS bundle to the
+# "production" EAS Update branch. Installed release builds with a matching runtimeVersion
+# (app version) download it on next launch.
+
+name: EAS Update (OTA)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+
+jobs:
+  update:
+    name: EAS Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EAS_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm install --legacy-peer-deps
+
+      - name: Publish OTA update
+        working-directory: mobile
+        run: eas update --branch production --message "OTA update from ${{ github.sha }}" --non-interactive
