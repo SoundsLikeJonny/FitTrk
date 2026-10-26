@@ -11,8 +11,10 @@
 #   DATABASE_URL, AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET
 #
 # ── Runtime env vars go in Vercel, NOT GitHub ──
-#   Vercel → Project → Settings → Environment Variables: DATABASE_URL, AUTH_SECRET, AUTH_URL,
+#   Vercel → Project → Settings → Environment Variables: DATABASE_URL, AUTH_SECRET,
+#   AUTH_URL=https://fit-trk.vercel.app, NEXTAUTH_URL=https://fit-trk.vercel.app,
 #   AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, AUTH_TRUST_HOST=true, plus any others the app reads.
+#   Production URL: https://fit-trk.vercel.app
 #   Vercel builds the app on its own servers (see vercel.json), so it uses those values.
 #
 # Database migrations are NOT run here. See GITHUB_SETUP.md.
@@ -57,10 +59,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 20
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       # The repo has no root lockfile (yarn.lock is gitignored) and the root .yarnrc.yml points
       # at a host-specific folder, so CI uses npm. --legacy-peer-deps tolerates React 19 peer ranges.
@@ -108,10 +110,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 20
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest

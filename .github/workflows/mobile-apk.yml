@@ -28,7 +28,7 @@ concurrency:
 env:
   # Backend the app talks to (inlined into the JS bundle at build time).
   # Override with a repository variable named EXPO_PUBLIC_API_URL (Settings → Variables).
-  EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://fittracker.abacusai.app' }}
+  EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://fit-trk.vercel.app' }}
   # Yarn 4 enables --immutable automatically on CI; keep it, mobile/yarn.lock is committed.
   YARN_ENABLE_GLOBAL_CACHE: "false"
 
@@ -49,10 +49,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Node 20
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Enable Corepack (Yarn 4 from mobile/package.json "packageManager")
         run: corepack enable
