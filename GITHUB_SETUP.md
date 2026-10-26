@@ -58,14 +58,17 @@ Adding a release keystore later means storing it as base64 secrets and running `
    - **B. Vercel's Git integration deploys:** don't add `VERCEL_TOKEN`. The workflow still runs the build check and
      the deploy job is skipped.
 3. **Database:** Vercel needs a PostgreSQL database it can reach from the internet (for example Vercel Postgres/Neon or Supabase).
-   Put its connection string in `DATABASE_URL`, then create the tables once from your machine:
-   `DATABASE_URL="<url>" npx prisma db push` (or `prisma migrate deploy` if you add migrations).
-   CI does **not** run migrations.
+   Put its connection string in `DATABASE_URL`, then create the tables once from your machine. This project uses
+   **Prisma 7**: connection URLs are in `prisma.config.ts` (CLI) and `lib/db.ts` (app), not in `schema.prisma`. In a local `.env` file
+   (gitignored), set `DATABASE_URL` and, optionally, `DIRECT_URL` (the non-pooled URL; the CLI prefers it when it's set). Then in
+   WebStorm's terminal run `node_modules/.bin/prisma db push` (Windows: `node_modules\.bin\prisma db push`).
+   The repo has no `prisma/migrations` folder, so CI and Vercel do **not** run migrations.
 4. **Environment variables:** Vercel → Project → Settings → Environment Variables (Production):
 
    | Name | Value |
    |---|---|
-   | `DATABASE_URL` | Postgres connection string |
+   | `DATABASE_URL` | Postgres connection string (pooled is fine; the app uses it through `@prisma/adapter-pg`) |
+   | `DIRECT_URL` | Optional non-pooled connection string, used only by Prisma CLI commands |
    | `AUTH_SECRET` | random string: `openssl rand -base64 32` |
    | `AUTH_URL` (and `NEXTAUTH_URL`) | `https://fit-trk.vercel.app` |
    | `AUTH_TRUST_HOST` | `true` |
@@ -85,8 +88,8 @@ Never commit `.vercel/` or any `.env` file. The root `.gitignore` already exclud
 
 ### What the workflow does
 - **build job** (pushes and PRs): `npm install --legacy-peer-deps` → `prisma generate` → `next build`.
-  Before generating, it removes the absolute `output = "/home/ubuntu/..."` line from `prisma/schema.prisma`
-  so the client goes to the default `node_modules/.prisma/client`. The file in the repo is left as it is.
+  The `sed` line in that step is left over from before; the hardcoded `output` path it removed is now gone from the schema, so the line does nothing.
+  `prisma generate` doesn't need a database connection.
 - **deploy job** (pushes to `main` only, and only when `VERCEL_TOKEN` is set): runs `vercel deploy --prod`. Vercel builds on
   its own servers with the env vars from step 4. The deployment URL appears in the run summary.
 
