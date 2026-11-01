@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { findDuplicateFoods } from '@/lib/food-utils'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -25,8 +26,17 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
-  const { name, amountG, cal, fatG, carbG, proteinG, typicalG, presets } = body ?? {}
+  const { name, amountG, cal, fatG, carbG, proteinG, typicalG, presets, force } = body ?? {}
   if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
+  if (!force) {
+    const dupes = await findDuplicateFoods(name, session.user.id)
+    if (dupes.length > 0) {
+      return NextResponse.json(
+        { error: 'duplicate', message: 'A food with this name already exists', foods: dupes },
+        { status: 409 },
+      )
+    }
+  }
   const food = await prisma.food.create({
     data: {
       name, amountG: amountG ?? 100, cal: cal ?? 0, fatG: fatG ?? 0,

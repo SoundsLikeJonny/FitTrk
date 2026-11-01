@@ -9,4 +9,6 @@ export type CreateFoodBody = {
   proteinG?: number;
   typicalG?: number;
   presets?: number[];
+  /** Set true to skip the duplicate-name check */
+  force?: boolean;
 };

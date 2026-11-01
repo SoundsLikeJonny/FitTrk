@@ -175,6 +175,10 @@
                     "items": {
                       "type": "number"
                     }
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "description": "Set true to skip the duplicate-name check"
                   }
                 },
                 "required": [
@@ -260,6 +264,10 @@
                     "items": {
                       "type": "number"
                     }
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "description": "Set true to skip the duplicate-name check"
                   }
                 }
               }

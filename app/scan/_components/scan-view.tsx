@@ -10,6 +10,7 @@ export function ScanView() {
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [progress, setProgress] = useState(0)
+  const [duplicates, setDuplicates] = useState<any[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
@@ -18,6 +19,7 @@ export function ScanView() {
     setImage(file)
     setPreview(URL.createObjectURL(file))
     setResult(null)
+    setDuplicates([])
   }
 
   const scan = async () => {
@@ -53,7 +55,7 @@ export function ScanView() {
     setScanning(false)
   }
 
-  const addToDatabase = async () => {
+  const addToDatabase = async (force = false) => {
     if (!result) return
     const res = await fetch('/api/foods', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -61,13 +63,28 @@ export function ScanView() {
         name: result.name ?? 'Scanned Food', amountG: result.servingSizeG ?? 100,
         cal: result.cal ?? 0, fatG: result.fatG ?? 0, carbG: result.carbG ?? 0,
         proteinG: result.proteinG ?? 0, typicalG: result.typicalG ?? result.servingSizeG ?? 100,
+        force,
       }),
     })
     if (res.ok) { toast.success('Added to food database!'); router.push('/today') }
+    else if (res.status === 409) {
+      const data = await res.json().catch(() => ({}))
+      setDuplicates(data?.foods ?? [])
+    }
     else {
       const data = await res.json().catch(() => ({}))
       toast.error(data?.error ?? 'Failed to add')
     }
+  }
+
+  const useExisting = async (food: any) => {
+    const res = await fetch('/api/daily-log', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), foodId: food.id, multiplier: 1 }),
+    })
+    if (res.ok) toast.success(`Logged ${food.name}`)
+    else toast.error('Failed to log food')
+    router.push('/today')
   }
 
   return (
@@ -107,10 +124,25 @@ export function ScanView() {
                 <div className="bg-muted rounded-lg p-2"><p className="text-xs text-muted-foreground">Fat</p><p className="font-mono">{result?.fatG ?? '--'}g</p></div>
                 <div className="bg-muted rounded-lg p-2"><p className="text-xs text-muted-foreground">Carbs</p><p className="font-mono">{result?.carbG ?? '--'}g</p></div>
               </div>
-              <button onClick={addToDatabase} className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2">
-                <Check className="w-4 h-4" /> Add to Food Database
+              {duplicates.length > 0 && (
+                <div className="rounded-xl bg-primary/5 border border-primary/20 p-3 space-y-2">
+                  <p className="text-sm font-medium text-primary">Already in database</p>
+                  <p className="text-xs text-muted-foreground">A food with this name already exists. Use the database version or add it anyway.</p>
+                  {duplicates.map(f => (
+                    <div key={f.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{f.name}</p>
+                        <p className="text-xs text-muted-foreground">{Math.round(f.typicalG)}g · {Math.round((f.cal / (f.amountG || 1)) * f.typicalG)} cal · {Math.round((f.proteinG / (f.amountG || 1)) * f.typicalG)}g P</p>
+                      </div>
+                      <button onClick={() => useExisting(f)} className="shrink-0 text-primary text-xs font-medium px-3 py-1.5 rounded-lg border border-primary/30 hover:bg-primary/10">Use this</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => addToDatabase(duplicates.length > 0)} className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2">
+                <Check className="w-4 h-4" /> {duplicates.length > 0 ? 'Add to database anyway' : 'Add to Food Database'}
               </button>
-              <button onClick={() => { setImage(null); setPreview(null); setResult(null) }} className="w-full text-sm text-muted-foreground hover:underline">Scan another</button>
+              <button onClick={() => { setImage(null); setPreview(null); setResult(null); setDuplicates([]) }} className="w-full text-sm text-muted-foreground hover:underline">Scan another</button>
             </div>
           )}
         </div>
