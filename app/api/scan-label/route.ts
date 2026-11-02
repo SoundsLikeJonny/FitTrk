@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-mini',
+        model: 'gemma-4-31b-it',
         messages: [
           {
             role: 'user',
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       if (response.status === 403) message = 'Invalid or expired API key. Check ABACUSAI_API_KEY.'
       else if (response.status === 429) message = 'Rate limit exceeded. Try again in a moment.'
       else if (response.status === 400) message = 'The AI could not process this image. Try a clearer photo.'
+      else if (response.status === 404) message = 'Model not found. The configured model id may be incorrect.'
       return NextResponse.json({ error: message }, { status: 500 })
     }
 
