@@ -77,7 +77,7 @@ export function ScanView() {
     }
   }
 
-  const useExisting = async (food: any) => {
+  const applyExisting = async (food: any) => {
     const res = await fetch('/api/daily-log', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), foodId: food.id, multiplier: 1 }),
@@ -134,7 +134,7 @@ export function ScanView() {
                         <p className="text-sm font-medium truncate">{f.name}</p>
                         <p className="text-xs text-muted-foreground">{Math.round(f.typicalG)}g · {Math.round((f.cal / (f.amountG || 1)) * f.typicalG)} cal · {Math.round((f.proteinG / (f.amountG || 1)) * f.typicalG)}g P</p>
                       </div>
-                      <button onClick={() => useExisting(f)} className="shrink-0 text-primary text-xs font-medium px-3 py-1.5 rounded-lg border border-primary/30 hover:bg-primary/10">Use this</button>
+                      <button onClick={() => applyExisting(f)} className="shrink-0 text-primary text-xs font-medium px-3 py-1.5 rounded-lg border border-primary/30 hover:bg-primary/10">Use this</button>
                     </div>
                   ))}
                 </div>
