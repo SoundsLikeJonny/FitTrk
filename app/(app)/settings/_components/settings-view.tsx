@@ -4,6 +4,7 @@ import { signOut } from 'next-auth/react'
 import { useSession } from 'next-auth/react'
 import { Save, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
+import { FoodDatabaseSection } from './food-database-section'
 
 export function SettingsView() {
   const { data: session } = useSession()
@@ -58,6 +59,7 @@ export function SettingsView() {
           <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
+      <FoodDatabaseSection />
       <button onClick={() => signOut({ redirectTo: '/login' })} className="w-full rounded-xl border border-destructive text-destructive py-3 font-medium flex items-center justify-center gap-2 hover:bg-destructive/10">
         <LogOut className="w-4 h-4" /> Sign Out
       </button>
