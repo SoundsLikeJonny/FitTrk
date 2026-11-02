@@ -57,7 +57,13 @@ export async function POST(request: NextRequest) {
       else if (response.status === 429) message = 'Rate limit exceeded. Try again in a moment.'
       else if (response.status === 400) message = 'The AI could not process this image. Try a clearer photo.'
       else if (response.status === 404) message = 'Model not found. The configured model id may be incorrect.'
-      return NextResponse.json({ error: message }, { status: 500 })
+      // Surface the provider's actual error detail so we can diagnose credits vs rate-limit vs bad model id
+      try {
+        const parsed = JSON.parse(errText)
+        const detail = parsed?.error?.message || parsed?.message || parsed?.error || ''
+        if (detail) message = `${message} (${String(detail).slice(0, 180)})`
+      } catch { /* non-JSON body; ignore */ }
+      return NextResponse.json({ error: message, status: response.status }, { status: 500 })
     }
 
     const reader = response.body?.getReader()
