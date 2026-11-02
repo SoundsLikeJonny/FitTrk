@@ -24,6 +24,9 @@ export function TodayView() {
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null)
+  const [multInput, setMultInput] = useState('1')
+  const [weightInput, setWeightInput] = useState('')
 
   const fetchData = useCallback(async () => {
     if (!date) return
@@ -39,12 +42,25 @@ export function TodayView() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const addEntry = async (food: FoodItem, mult = 1) => {
+  const addEntry = async (food: FoodItem, mult = 1, amountG?: number) => {
     await fetch('/api/daily-log', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, foodId: food.id, multiplier: mult }),
+      body: JSON.stringify({ date, foodId: food.id, multiplier: mult, amountG: amountG ?? null }),
     })
-    setShowAdd(false); setSearch(''); fetchData()
+    setShowAdd(false); setSearch(''); setSelectedFood(null); setMultInput('1'); setWeightInput(''); fetchData()
+  }
+
+  const selectFood = (f: FoodItem) => {
+    setSelectedFood(f)
+    setMultInput('1')
+    setWeightInput(String(f.typicalG))
+  }
+
+  const confirmAdd = () => {
+    if (!selectedFood) return
+    const mult = parseFloat(multInput) || 1
+    const weight = parseFloat(weightInput) || selectedFood.typicalG
+    addEntry(selectedFood, mult, weight)
   }
 
   const deleteEntry = async (id: string) => {
@@ -124,31 +140,65 @@ export function TodayView() {
         <Link href="/scan" className="flex items-center justify-center rounded-xl bg-card border border-border px-4 py-3 hover:bg-accent"><Camera className="w-5 h-5" /></Link>
       </div>
       {showAdd && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowAdd(false)}>
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => { setShowAdd(false); setSelectedFood(null) }}>
           <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
-            <div className="p-4 border-b border-border flex items-center gap-2">
-              <Search className="w-4 h-4 text-muted-foreground" />
-              <input autoFocus type="text" placeholder="Search foods..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 bg-transparent text-sm focus:outline-none" />
-              <button onClick={() => setShowAdd(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
-            </div>
-            <div className="overflow-y-auto flex-1 p-2">
-              {filteredFoods.map(f => {
-                let presets: number[] = [0.5, 1, 2]
-                try { presets = JSON.parse(f?.presets ?? '[0.5,1,2]') } catch {}
-                return (
-                  <div key={f.id} className="p-3 hover:bg-accent rounded-xl cursor-pointer" onClick={() => addEntry(f)}>
-                    <p className="font-medium text-sm">{f.name}</p>
-                    <p className="text-xs text-muted-foreground">{f.typicalG}g · {Math.round((f.cal / (f.amountG || 1)) * f.typicalG)} cal</p>
-                    <div className="flex gap-1 mt-1">
-                      {presets.map((p: number) => (
-                        <button key={p} onClick={e => { e.stopPropagation(); addEntry(f, p) }} className="text-xs px-2 py-0.5 rounded bg-muted hover:bg-primary/20 hover:text-primary">{p}x</button>
-                      ))}
-                    </div>
+            {selectedFood ? (
+              <div className="p-4 space-y-4 overflow-y-auto">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedFood(null)} className="p-1 rounded-lg hover:bg-accent"><ChevronLeft className="w-5 h-5" /></button>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{selectedFood.name}</p>
+                    <p className="text-xs text-muted-foreground">{Math.round(selectedFood.typicalG)}g typical · {Math.round((selectedFood.cal / (selectedFood.amountG || 1)) * selectedFood.typicalG)} cal</p>
                   </div>
-                )
-              })}
-              {filteredFoods.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No foods found</p>}
-            </div>
+                  <button onClick={() => { setShowAdd(false); setSelectedFood(null) }}><X className="w-5 h-5 text-muted-foreground" /></button>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Multiplier</label>
+                  <div className="flex gap-2 mt-1">
+                    {(() => { let presets: number[] = [0.5, 1, 2]; try { presets = JSON.parse(selectedFood?.presets ?? '[0.5,1,2]') } catch {} return presets })().map((p: number) => (
+                      <button key={p} onClick={() => setMultInput(String(p))} className={cn('text-xs px-3 py-2 rounded-lg', parseFloat(multInput) === p ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-primary/20 hover:text-primary')}>{p}x</button>
+                    ))}
+                    <input type="number" inputMode="decimal" value={multInput} onChange={e => setMultInput(e.target.value)}
+                      className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="e.g. 3.5" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Weight (g)</label>
+                  <input type="number" inputMode="decimal" value={weightInput} onChange={e => setWeightInput(e.target.value)}
+                    className="w-full mt-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <p className="text-[10px] text-muted-foreground mt-1">Defaults to typical serving ({Math.round(selectedFood.typicalG)}g)</p>
+                </div>
+                {(() => {
+                  const n = calcEntryNutrition({ multiplier: parseFloat(multInput) || 1, amountG: parseFloat(weightInput) || selectedFood.typicalG, food: selectedFood })
+                  return (
+                    <div className="rounded-xl bg-muted/50 p-3 grid grid-cols-4 gap-2 text-center">
+                      <div><p className="font-mono text-sm font-medium">{Math.round(n.cal)}</p><p className="text-[10px] text-muted-foreground">cal</p></div>
+                      <div><p className="font-mono text-sm font-medium text-blue-500">{Math.round(n.proteinG)}g</p><p className="text-[10px] text-muted-foreground">protein</p></div>
+                      <div><p className="font-mono text-sm font-medium text-orange-500">{Math.round(n.carbG)}g</p><p className="text-[10px] text-muted-foreground">carbs</p></div>
+                      <div><p className="font-mono text-sm font-medium text-yellow-500">{Math.round(n.fatG)}g</p><p className="text-[10px] text-muted-foreground">fat</p></div>
+                    </div>
+                  )
+                })()}
+                <button onClick={confirmAdd} className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2 hover:bg-primary/90"><Plus className="w-5 h-5" /> Add to Log</button>
+              </div>
+            ) : (
+              <>
+                <div className="p-4 border-b border-border flex items-center gap-2">
+                  <Search className="w-4 h-4 text-muted-foreground" />
+                  <input autoFocus type="text" placeholder="Search foods..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 bg-transparent text-sm focus:outline-none" />
+                  <button onClick={() => setShowAdd(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-2">
+                  {filteredFoods.map(f => (
+                    <div key={f.id} className="p-3 hover:bg-accent rounded-xl cursor-pointer" onClick={() => selectFood(f)}>
+                      <p className="font-medium text-sm">{f.name}</p>
+                      <p className="text-xs text-muted-foreground">{Math.round(f.typicalG)}g · {Math.round((f.cal / (f.amountG || 1)) * f.typicalG)} cal</p>
+                    </div>
+                  ))}
+                  {filteredFoods.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No foods found</p>}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
