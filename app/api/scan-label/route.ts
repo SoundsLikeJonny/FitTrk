@@ -6,6 +6,11 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  if (!process.env.ABACUSAI_API_KEY) {
+    console.error('ABACUSAI_API_KEY environment variable is not set')
+    return NextResponse.json({ error: 'AI service not configured. Set ABACUSAI_API_KEY.' }, { status: 500 })
+  }
+
   try {
     const formData = await request.formData()
     const file = formData.get('image') as File | null
@@ -46,8 +51,12 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errText = await response.text()
-      console.error('LLM API error:', errText)
-      return NextResponse.json({ error: 'Failed to analyze image' }, { status: 500 })
+      console.error('LLM API error:', response.status, errText)
+      let message = 'Failed to analyze image'
+      if (response.status === 403) message = 'Invalid or expired API key. Check ABACUSAI_API_KEY.'
+      else if (response.status === 429) message = 'Rate limit exceeded. Try again in a moment.'
+      else if (response.status === 400) message = 'The AI could not process this image. Try a clearer photo.'
+      return NextResponse.json({ error: message }, { status: 500 })
     }
 
     const reader = response.body?.getReader()

@@ -34,3 +34,6 @@ next-env.d.ts
 .DS_Store
 .cache/
 *.tmp
+
+# IDE
+.idea/

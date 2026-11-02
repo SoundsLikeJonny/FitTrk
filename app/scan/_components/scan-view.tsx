@@ -27,7 +27,11 @@ export function ScanView() {
     formData.append('image', image)
     try {
       const response = await fetch('/api/scan-label', { method: 'POST', body: formData })
-      if (!response.ok) { toast.error('Failed to analyze'); setScanning(false); return }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        toast.error(data?.error ?? 'Failed to analyze')
+        setScanning(false); return
+      }
       const reader = response.body?.getReader()
       if (!reader) { setScanning(false); return }
       const decoder = new TextDecoder()

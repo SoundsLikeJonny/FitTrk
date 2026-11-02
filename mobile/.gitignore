@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Yarn 4 install state (regenerated on every install)
+.yarn/install-state.gz
+
 # Expo
 .expo/
 dist/
