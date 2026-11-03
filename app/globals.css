@@ -77,4 +77,11 @@
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
   }
+  button { touch-action: manipulation; }
+}
+
+@layer utilities {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

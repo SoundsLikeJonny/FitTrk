@@ -135,8 +135,8 @@ export function FoodDatabaseSection() {
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={close}>
-          <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[85vh] overflow-y-auto p-4 space-y-4" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
+        <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={close}>
+          <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[85vh] overflow-y-auto p-4 pb-6 space-y-4" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
             <div className="flex items-center justify-between">
               <h2 className="font-display font-bold text-lg">{editing ? 'Edit Food' : 'Add Food'}</h2>
               <button onClick={close}><X className="w-5 h-5 text-muted-foreground" /></button>

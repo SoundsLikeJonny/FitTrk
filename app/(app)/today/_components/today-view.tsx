@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Trash2, Camera, Search, X } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Trash2, Camera, Search, X, Pencil, Save } from 'lucide-react'
 import { calcEntryNutrition, calcTargets } from '@/lib/nutrition'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -27,6 +27,7 @@ export function TodayView() {
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null)
   const [multInput, setMultInput] = useState('1')
   const [weightInput, setWeightInput] = useState('')
+  const [editingEntry, setEditingEntry] = useState<Entry | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!date) return
@@ -47,7 +48,7 @@ export function TodayView() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date, foodId: food.id, multiplier: mult, amountG: amountG ?? null }),
     })
-    setShowAdd(false); setSearch(''); setSelectedFood(null); setMultInput('1'); setWeightInput(''); fetchData()
+    setShowAdd(false); setSearch(''); setSelectedFood(null); setMultInput('1'); setWeightInput(''); setEditingEntry(null); fetchData()
   }
 
   const selectFood = (f: FoodItem) => {
@@ -61,6 +62,25 @@ export function TodayView() {
     const mult = parseFloat(multInput) || 1
     const weight = parseFloat(weightInput) || selectedFood.typicalG
     addEntry(selectedFood, mult, weight)
+  }
+
+  const startEdit = (entry: Entry) => {
+    setEditingEntry(entry)
+    setSelectedFood(entry.food)
+    setMultInput(String(entry.multiplier ?? 1))
+    setWeightInput(String(entry.amountG ?? entry.food.typicalG))
+    setShowAdd(true)
+  }
+
+  const confirmEdit = async () => {
+    if (!editingEntry) return
+    const mult = parseFloat(multInput) || 1
+    const weight = parseFloat(weightInput) || (editingEntry.food?.typicalG ?? 100)
+    await fetch(`/api/daily-log/${editingEntry.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ multiplier: mult, amountG: weight }),
+    })
+    setShowAdd(false); setEditingEntry(null); setSelectedFood(null); setMultInput('1'); setWeightInput(''); fetchData()
   }
 
   const deleteEntry = async (id: string) => {
@@ -130,7 +150,10 @@ export function TodayView() {
                   {e.multiplier !== 1 ? `${e.multiplier}x · ` : ''}{Math.round(e?.amountG ?? e?.food?.typicalG ?? 0)}g · {Math.round(n.cal)} cal · {Math.round(n.proteinG)}g P
                 </p>
               </div>
-              <button onClick={() => deleteEntry(e.id)} className="p-2 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => startEdit(e)} className="p-2 text-muted-foreground hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => deleteEntry(e.id)} className="p-2 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
+              </div>
             </div>
           )
         })}
@@ -140,17 +163,17 @@ export function TodayView() {
         <Link href="/scan" className="flex items-center justify-center rounded-xl bg-card border border-border px-4 py-3 hover:bg-accent"><Camera className="w-5 h-5" /></Link>
       </div>
       {showAdd && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => { setShowAdd(false); setSelectedFood(null) }}>
+        <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => { setShowAdd(false); setSelectedFood(null); setEditingEntry(null) }}>
           <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
             {selectedFood ? (
-              <div className="p-4 space-y-4 overflow-y-auto">
+              <div className="p-4 pb-6 space-y-4 overflow-y-auto">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setSelectedFood(null)} className="p-1 rounded-lg hover:bg-accent"><ChevronLeft className="w-5 h-5" /></button>
+                  <button onClick={() => { if (editingEntry) { setShowAdd(false); setSelectedFood(null); setEditingEntry(null) } else setSelectedFood(null) }} className="p-1 rounded-lg hover:bg-accent"><ChevronLeft className="w-5 h-5" /></button>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{selectedFood.name}</p>
                     <p className="text-xs text-muted-foreground">{Math.round(selectedFood.typicalG)}g typical · {Math.round((selectedFood.cal / (selectedFood.amountG || 1)) * selectedFood.typicalG)} cal</p>
                   </div>
-                  <button onClick={() => { setShowAdd(false); setSelectedFood(null) }}><X className="w-5 h-5 text-muted-foreground" /></button>
+                  <button onClick={() => { setShowAdd(false); setSelectedFood(null); setEditingEntry(null) }}><X className="w-5 h-5 text-muted-foreground" /></button>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Multiplier</label>
@@ -179,14 +202,14 @@ export function TodayView() {
                     </div>
                   )
                 })()}
-                <button onClick={confirmAdd} className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2 hover:bg-primary/90"><Plus className="w-5 h-5" /> Add to Log</button>
+                <button onClick={editingEntry ? confirmEdit : confirmAdd} className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2 hover:bg-primary/90">{editingEntry ? <Save className="w-5 h-5" /> : <Plus className="w-5 h-5" />} {editingEntry ? 'Save Changes' : 'Add to Log'}</button>
               </div>
             ) : (
               <>
                 <div className="p-4 border-b border-border flex items-center gap-2">
                   <Search className="w-4 h-4 text-muted-foreground" />
                   <input autoFocus type="text" placeholder="Search foods..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 bg-transparent text-sm focus:outline-none" />
-                  <button onClick={() => setShowAdd(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+                  <button onClick={() => { setShowAdd(false); setEditingEntry(null) }}><X className="w-5 h-5 text-muted-foreground" /></button>
                 </div>
                 <div className="overflow-y-auto flex-1 p-2">
                   {filteredFoods.map(f => (
