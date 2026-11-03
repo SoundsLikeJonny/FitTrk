@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Play, Trash2, Dumbbell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export function WorkoutsView() {
   const [templates, setTemplates] = useState<any[]>([])
@@ -23,6 +24,11 @@ export function WorkoutsView() {
   const startWorkout = async (templateId: string) => {
     const res = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId }) })
     if (res.ok) { const s = await res.json(); router.push(`/session/${s.id}`) }
+    else if (res.status === 409) {
+      const data = await res.json()
+      toast.error('You already have an active workout')
+      router.push(`/session/${data.sessionId}`)
+    }
   }
 
   const createTemplate = async () => {
@@ -65,6 +71,11 @@ export function WorkoutsView() {
       <button onClick={async () => {
         const res = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Quick Workout' }) })
         if (res.ok) { const s = await res.json(); router.push(`/session/${s.id}`) }
+        else if (res.status === 409) {
+          const data = await res.json()
+          toast.error('You already have an active workout')
+          router.push(`/session/${data.sessionId}`)
+        }
       }} className="w-full mt-4 rounded-xl border border-border py-3 font-medium text-center hover:bg-accent flex items-center justify-center gap-2"><Play className="w-4 h-4" /> Start Empty Workout</button>
 
       {showCreate && (

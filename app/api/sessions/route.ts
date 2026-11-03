@@ -8,6 +8,20 @@ export async function GET(request: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const url = new URL(request.url)
+  const active = url.searchParams.get('active')
+
+  if (active === 'true') {
+    const activeSession = await prisma.workoutSession.findFirst({
+      where: { userId: session.user.id, finishedAt: null },
+      include: {
+        setLogs: { include: { exercise: true }, orderBy: [{ exerciseId: 'asc' }, { setNumber: 'asc' }] },
+        template: true,
+      },
+      orderBy: { startedAt: 'desc' },
+    })
+    return NextResponse.json(activeSession ?? null)
+  }
+
   const limit = parseInt(url.searchParams.get('limit') ?? '50', 10)
   const offset = parseInt(url.searchParams.get('offset') ?? '0', 10)
 
@@ -30,6 +44,17 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json()
   const { templateId, name } = body ?? {}
+
+  const existing = await prisma.workoutSession.findFirst({
+    where: { userId: session.user.id, finishedAt: null },
+    select: { id: true, name: true },
+  })
+  if (existing) {
+    return NextResponse.json(
+      { error: 'You already have an active workout', sessionId: existing.id, name: existing.name },
+      { status: 409 }
+    )
+  }
 
   let workoutName = name ?? 'Workout'
   let setLogsData: any[] = []

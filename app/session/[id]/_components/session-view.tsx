@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Plus, Timer, Square, ChevronLeft } from 'lucide-react'
+import { Check, Plus, Timer, Square, ChevronLeft, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 export function SessionView({ sessionId }: { sessionId: string }) {
@@ -10,6 +11,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   const [restTimer, setRestTimer] = useState(0)
   const [restActive, setRestActive] = useState(false)
   const [restDuration, setRestDuration] = useState(90)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const startRef = useRef(Date.now())
   const router = useRouter()
 
@@ -78,11 +80,21 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   }
 
   const finishWorkout = async () => {
+    const completedSets = (session?.setLogs ?? []).filter((s: any) => s?.completed)
+    if (completedSets.length === 0) {
+      toast.error('Cannot finish an empty workout. Complete at least one set first.')
+      return
+    }
     await fetch(`/api/sessions/${sessionId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ finishedAt: new Date().toISOString(), durationSec: elapsed }),
     })
     router.push('/history')
+  }
+
+  const cancelWorkout = async () => {
+    await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+    router.push('/workouts')
   }
 
   const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
@@ -139,9 +151,27 @@ export function SessionView({ sessionId }: { sessionId: string }) {
         </div>
       ))}
 
-      <button onClick={finishWorkout} className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2 hover:bg-primary/90">
-        <Square className="w-4 h-4" /> Finish Workout
-      </button>
+      <div className="flex gap-2">
+        <button onClick={() => setShowCancelConfirm(true)} className="rounded-xl border border-destructive/30 text-destructive py-3 px-4 font-medium flex items-center justify-center gap-2 hover:bg-destructive/10">
+          <X className="w-4 h-4" /> Cancel
+        </button>
+        <button onClick={finishWorkout} className="flex-1 rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2 hover:bg-primary/90">
+          <Square className="w-4 h-4" /> Finish Workout
+        </button>
+      </div>
+
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center px-4" onClick={() => setShowCancelConfirm(false)}>
+          <div className="bg-card w-full max-w-sm rounded-2xl p-6" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <h3 className="font-display font-bold text-lg mb-2">Cancel Workout?</h3>
+            <p className="text-sm text-muted-foreground mb-6">This will permanently delete the workout session and all logged sets. This cannot be undone.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowCancelConfirm(false)} className="flex-1 rounded-xl border border-border py-3 font-medium hover:bg-accent">Keep Workout</button>
+              <button onClick={cancelWorkout} className="flex-1 rounded-xl bg-destructive text-destructive-foreground py-3 font-medium hover:bg-destructive/90">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
