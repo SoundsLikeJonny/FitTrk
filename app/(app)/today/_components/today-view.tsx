@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, ChevronLeft, ChevronRight, Trash2, Camera, Search, X, Pencil, Save } from 'lucide-react'
 import { calcEntryNutrition, calcTargets } from '@/lib/nutrition'
-import { cn } from '@/lib/utils'
+import { cn, localDateStr } from '@/lib/utils'
 import Link from 'next/link'
 
 interface FoodItem {
@@ -16,7 +16,7 @@ export function TodayView() {
   const [date, setDate] = useState('')
 
   useEffect(() => {
-    setDate(new Date().toISOString().slice(0, 10))
+    setDate(localDateStr())
   }, [])
   const [log, setLog] = useState<{ id: string; entries: Entry[] } | null>(null)
   const [settings, setSettings] = useState<any>(null)
@@ -91,7 +91,7 @@ export function TodayView() {
   const changeDate = (days: number) => {
     const d = new Date(date + 'T12:00:00')
     d.setDate(d.getDate() + days)
-    setDate(d.toISOString().slice(0, 10))
+    setDate(localDateStr(d))
   }
 
   const entries = log?.entries ?? []
