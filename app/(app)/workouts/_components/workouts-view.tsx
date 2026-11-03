@@ -34,7 +34,7 @@ export function WorkoutsView() {
   const createTemplate = async () => {
     if (!name) return
     const res = await fetch('/api/workouts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, exercises: selectedExercises.map((e: any) => ({ exerciseId: e.id, sets: 3, reps: 10, weight: 0 })) }) })
+      body: JSON.stringify({ name, exercises: selectedExercises.map((e: any) => ({ exerciseId: e.id, sets: e.defaultSets ?? 3, reps: e.defaultReps ?? 10, weight: 0 })) }) })
     if (res.ok) { const t = await res.json(); setTemplates(prev => [t, ...prev]); setShowCreate(false); setName(''); setSelectedExercises([]) }
   }
 

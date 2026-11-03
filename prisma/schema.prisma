@@ -74,6 +74,8 @@ model Exercise {
   userId      String?
   user        User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
   restSeconds Int     @default(90)
+  defaultSets Int     @default(3)
+  defaultReps Int     @default(10)
 
   templateExercises TemplateExercise[]
   setLogs           SetLog[]

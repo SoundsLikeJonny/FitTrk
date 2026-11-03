@@ -14,6 +14,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       name: body.name ?? undefined, bodyPart: body.bodyPart ?? undefined,
       category: body.category ?? undefined, weightType: body.weightType ?? undefined,
       restSeconds: body.restSeconds ?? undefined,
+      defaultSets: body.defaultSets ?? undefined,
+      defaultReps: body.defaultReps ?? undefined,
     },
   })
   return NextResponse.json(exercise)

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { name, bodyPart, category, weightType, restSeconds } = body ?? {}
+  const { name, bodyPart, category, weightType, restSeconds, defaultSets, defaultReps } = body ?? {}
 
   if (!name || !bodyPart || !category) {
     return NextResponse.json({ error: 'Name, bodyPart, and category are required' }, { status: 400 })
@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
       category: category ?? 'compound',
       weightType: weightType ?? 'barbell',
       restSeconds: restSeconds ?? 90,
+      defaultSets: defaultSets ?? 3,
+      defaultReps: defaultReps ?? 10,
       isCustom: true,
       userId: session.user.id,
     },
