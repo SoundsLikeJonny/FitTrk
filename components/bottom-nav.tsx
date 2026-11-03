@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UtensilsCrossed, Dumbbell, History, Settings } from 'lucide-react'
+import { UtensilsCrossed, Dumbbell, History, Settings, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const tabs = [
   { href: '/today', label: 'Today', icon: UtensilsCrossed },
+  { href: '/stats', label: 'Stats', icon: BarChart3 },
   { href: '/workouts', label: 'Workouts', icon: Dumbbell },
   { href: '/history', label: 'History', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings },
