@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, ChevronLeft, ChevronRight, Trash2, Camera, Search, X, Pencil, Save } from 'lucide-react'
 import { calcEntryNutrition, calcTargets } from '@/lib/nutrition'
 import { cn, localDateStr } from '@/lib/utils'
@@ -28,6 +28,8 @@ export function TodayView() {
   const [multInput, setMultInput] = useState('1')
   const [weightInput, setWeightInput] = useState('')
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null)
+  const [detailEntry, setDetailEntry] = useState<Entry | null>(null)
+  const searchListRef = useRef<HTMLDivElement>(null)
 
   const fetchData = useCallback(async () => {
     if (!date) return
@@ -69,6 +71,7 @@ export function TodayView() {
     setSelectedFood(entry.food)
     setMultInput(String(entry.multiplier ?? 1))
     setWeightInput(String(entry.amountG ?? entry.food.typicalG))
+    setDetailEntry(null)
     setShowAdd(true)
   }
 
@@ -84,6 +87,7 @@ export function TodayView() {
   }
 
   const deleteEntry = async (id: string) => {
+    setDetailEntry(null)
     await fetch(`/api/daily-log/${id}`, { method: 'DELETE' })
     fetchData()
   }
@@ -102,6 +106,10 @@ export function TodayView() {
 
   const targets = settings ? calcTargets(settings) : null
   const filteredFoods = foods?.filter(f => f?.name?.toLowerCase()?.includes(search?.toLowerCase() ?? '')) ?? []
+
+  useEffect(() => {
+    if (searchListRef.current) searchListRef.current.scrollTop = 0
+  }, [search])
 
   const Bar = ({ value, target, label, color }: { value: number; target: number; label: string; color: string }) => {
     const pct = target > 0 ? Math.min((value / target) * 100, 100) : 0
@@ -143,18 +151,15 @@ export function TodayView() {
         {entries.map(e => {
           const n = calcEntryNutrition({ multiplier: e?.multiplier ?? 1, amountG: e?.amountG ?? null, food: e?.food ?? { amountG: 100, cal: 0, fatG: 0, carbG: 0, proteinG: 0, typicalG: 100 } })
           return (
-            <div key={e.id} className="bg-card rounded-xl p-3 flex items-center justify-between" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <button key={e.id} onClick={() => setDetailEntry(e)} className="w-full text-left bg-card rounded-xl p-3 flex items-center justify-between" style={{ boxShadow: 'var(--shadow-sm)' }}>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{e?.food?.name ?? 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">
                   {e.multiplier !== 1 ? `${e.multiplier}x · ` : ''}{Math.round(e?.amountG ?? e?.food?.typicalG ?? 0)}g · {Math.round(n.cal)} cal · {Math.round(n.proteinG)}g P
                 </p>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => startEdit(e)} className="p-2 text-muted-foreground hover:text-primary"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => deleteEntry(e.id)} className="p-2 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
-              </div>
-            </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+            </button>
           )
         })}
       </div>
@@ -162,6 +167,39 @@ export function TodayView() {
         <button onClick={() => setShowAdd(true)} className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground py-3 font-medium hover:bg-primary/90"><Plus className="w-5 h-5" /> Add Food</button>
         <Link href="/scan" className="flex items-center justify-center rounded-xl bg-card border border-border px-4 py-3 hover:bg-accent"><Camera className="w-5 h-5" /></Link>
       </div>
+      {detailEntry && (() => {
+        const e = detailEntry
+        const n = calcEntryNutrition({ multiplier: e.multiplier ?? 1, amountG: e.amountG ?? null, food: e.food })
+        return (
+          <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setDetailEntry(null)}>
+            <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto p-4 pb-6 space-y-4" onClick={ev => ev.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
+              <div className="flex items-center justify-between">
+                <h2 className="font-display font-bold text-lg truncate">{e.food?.name ?? 'Unknown'}</h2>
+                <button onClick={() => setDetailEntry(null)}><X className="w-5 h-5 text-muted-foreground" /></button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {e.multiplier !== 1 ? `${e.multiplier}x · ` : ''}{Math.round(e.amountG ?? e.food?.typicalG ?? 0)}g serving
+              </p>
+              <div className="rounded-xl bg-muted/50 p-4 grid grid-cols-4 gap-2 text-center">
+                <div><p className="font-mono text-lg font-medium">{Math.round(n.cal)}</p><p className="text-[10px] text-muted-foreground">cal</p></div>
+                <div><p className="font-mono text-lg font-medium text-blue-500">{Math.round(n.proteinG)}g</p><p className="text-[10px] text-muted-foreground">protein</p></div>
+                <div><p className="font-mono text-lg font-medium text-orange-500">{Math.round(n.carbG)}g</p><p className="text-[10px] text-muted-foreground">carbs</p></div>
+                <div><p className="font-mono text-lg font-medium text-yellow-500">{Math.round(n.fatG)}g</p><p className="text-[10px] text-muted-foreground">fat</p></div>
+              </div>
+              <div className="rounded-xl border border-border p-3 space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Multiplier</span><span className="font-mono">{e.multiplier ?? 1}x</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Weight</span><span className="font-mono">{Math.round(e.amountG ?? e.food?.typicalG ?? 0)}g</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Per {Math.round(e.food?.amountG ?? 100)}g</span><span className="font-mono">{Math.round(e.food?.cal ?? 0)} cal</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Typical serving</span><span className="font-mono">{Math.round(e.food?.typicalG ?? 0)}g</span></div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => startEdit(e)} className="flex-1 rounded-xl bg-primary text-primary-foreground py-3 font-medium flex items-center justify-center gap-2 hover:bg-primary/90"><Pencil className="w-4 h-4" /> Edit</button>
+                <button onClick={() => deleteEntry(e.id)} className="flex-1 rounded-xl border border-destructive text-destructive py-3 font-medium flex items-center justify-center gap-2 hover:bg-destructive/10"><Trash2 className="w-4 h-4" /> Remove</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       {showAdd && (
         <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => { setShowAdd(false); setSelectedFood(null); setEditingEntry(null) }}>
           <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
@@ -211,9 +249,9 @@ export function TodayView() {
                   <input autoFocus type="text" placeholder="Search foods..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 bg-transparent text-sm focus:outline-none" />
                   <button onClick={() => { setShowAdd(false); setEditingEntry(null) }}><X className="w-5 h-5 text-muted-foreground" /></button>
                 </div>
-                <div className="overflow-y-auto flex-1 p-2">
+                <div ref={searchListRef} className="overflow-y-auto flex-1 p-2 pb-32" style={{ WebkitOverflowScrolling: 'touch' }}>
                   {filteredFoods.map(f => (
-                    <div key={f.id} className="p-3 hover:bg-accent rounded-xl cursor-pointer" onClick={() => selectFood(f)}>
+                    <div key={f.id} className="p-3 hover:bg-accent active:bg-accent rounded-xl cursor-pointer" onClick={() => selectFood(f)}>
                       <p className="font-medium text-sm">{f.name}</p>
                       <p className="text-xs text-muted-foreground">{Math.round(f.typicalG)}g · {Math.round((f.cal / (f.amountG || 1)) * f.typicalG)} cal</p>
                     </div>
