@@ -1,17 +1,24 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Plus, Timer, Square, ChevronLeft, X } from 'lucide-react'
+import { Check, Plus, Timer, Square, ChevronLeft, X, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+
+const REST_PRESETS = [30, 60, 90, 120, 180]
 
 export function SessionView({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<any>(null)
   const [elapsed, setElapsed] = useState(0)
   const [restTimer, setRestTimer] = useState(0)
   const [restActive, setRestActive] = useState(false)
-  const [restDuration, setRestDuration] = useState(90)
+  const [selectedRestDuration, setSelectedRestDuration] = useState(90)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [showExercisePicker, setShowExercisePicker] = useState(false)
+  const [showTemplatePrompt, setShowTemplatePrompt] = useState(false)
+  const [allExercises, setAllExercises] = useState<any[]>([])
+  const [exerciseSearch, setExerciseSearch] = useState('')
+  const [templateChanged, setTemplateChanged] = useState(false)
   const startRef = useRef(Date.now())
   const router = useRouter()
 
@@ -48,6 +55,21 @@ export function SessionView({ sessionId }: { sessionId: string }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (!showExercisePicker) return
+    let cancelled = false
+    ;(async () => {
+      const res = await fetch('/api/exercises')
+      if (res.ok && !cancelled) setAllExercises(await res.json())
+    })()
+    return () => { cancelled = true }
+  }, [showExercisePicker])
+
+  const startRest = (duration: number) => {
+    setRestTimer(duration)
+    setRestActive(true)
+  }
+
   const toggleSet = async (setLog: any) => {
     const newCompleted = !setLog.completed
     await fetch(`/api/sessions/${sessionId}/sets`, {
@@ -55,8 +77,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
       body: JSON.stringify({ setId: setLog.id, completed: newCompleted, weight: setLog.weight, reps: setLog.reps }),
     })
     if (newCompleted) {
-      setRestTimer(restDuration)
-      setRestActive(true)
+      startRest(selectedRestDuration)
     }
     fetchSession()
   }
@@ -79,17 +100,76 @@ export function SessionView({ sessionId }: { sessionId: string }) {
     fetchSession()
   }
 
+  const addExercise = async (exercise: any) => {
+    await fetch(`/api/sessions/${sessionId}/sets`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exerciseId: exercise.id, setNumber: 1, weight: 0, reps: exercise.defaultReps ?? 10 }),
+    })
+    setShowExercisePicker(false)
+    setExerciseSearch('')
+    fetchSession()
+  }
+
+  const removeExercise = async (exerciseId: string, name: string) => {
+    if (!window.confirm(`Remove "${name}" and all its sets from this workout?`)) return
+    await fetch(`/api/sessions/${sessionId}/sets?exerciseId=${exerciseId}`, { method: 'DELETE' })
+    fetchSession()
+  }
+
+  const completeSession = async () => {
+    await fetch(`/api/sessions/${sessionId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ finishedAt: new Date().toISOString(), durationSec: elapsed }),
+    })
+    router.push('/history')
+  }
+
+  const currentExerciseIds = () => Array.from(new Set(
+    (session?.setLogs ?? []).map((s: any) => s?.exerciseId).filter(Boolean)
+  )) as string[]
+
   const finishWorkout = async () => {
     const completedSets = (session?.setLogs ?? []).filter((s: any) => s?.completed)
     if (completedSets.length === 0) {
       toast.error('Cannot finish an empty workout. Complete at least one set first.')
       return
     }
-    await fetch(`/api/sessions/${sessionId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ finishedAt: new Date().toISOString(), durationSec: elapsed }),
-    })
-    router.push('/history')
+    if (!session?.templateId) {
+      await completeSession()
+      return
+    }
+    const res = await fetch(`/api/workouts/${session.templateId}`)
+    if (!res.ok) {
+      await completeSession()
+      return
+    }
+    const template = await res.json()
+    const templateExerciseIds: string[] = (template?.exercises ?? []).map((ex: any) => ex?.exerciseId)
+    const sessionExerciseIds = currentExerciseIds()
+    const changed = templateExerciseIds.length !== sessionExerciseIds.length ||
+      templateExerciseIds.some(id => !sessionExerciseIds.includes(id))
+    if (!changed) {
+      await completeSession()
+      return
+    }
+    setTemplateChanged(true)
+    setShowTemplatePrompt(true)
+  }
+
+  const updateTemplateAndFinish = async () => {
+    if (session?.templateId) {
+      await fetch(`/api/workouts/${session.templateId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exercises: currentExerciseIds().map(id => ({ exerciseId: id, sets: 3, reps: 10, weight: 0 })) }),
+      })
+    }
+    setShowTemplatePrompt(false)
+    await completeSession()
+  }
+
+  const skipTemplateUpdate = async () => {
+    setShowTemplatePrompt(false)
+    await completeSession()
   }
 
   const cancelWorkout = async () => {
@@ -108,6 +188,16 @@ export function SessionView({ sessionId }: { sessionId: string }) {
     return acc
   }, {} as Record<string, any>)
 
+  const filteredExercises = (allExercises ?? []).filter((e: any) =>
+    (e?.name ?? '').toLowerCase().includes(exerciseSearch.toLowerCase())
+  )
+  const exercisesByBodyPart = filteredExercises.reduce((acc: any, e: any) => {
+    const bp = e?.bodyPart ?? 'other'
+    if (!acc[bp]) acc[bp] = []
+    acc[bp].push(e)
+    return acc
+  }, {} as Record<string, any[]>)
+
   return (
     <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
       <div className="flex items-center justify-between mb-4">
@@ -119,18 +209,38 @@ export function SessionView({ sessionId }: { sessionId: string }) {
         <div className="w-9" />
       </div>
 
-      {restActive && (
-        <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 mb-4 text-center">
-          <Timer className="w-6 h-6 mx-auto text-primary mb-1" />
-          <p className="text-2xl font-mono font-bold text-primary">{formatTime(restTimer)}</p>
+      <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 mb-4 text-center">
+        <Timer className="w-6 h-6 mx-auto text-primary mb-1" />
+        {restActive ? (
+          <>
+            <p className="text-2xl font-mono font-bold text-primary">{formatTime(restTimer)}</p>
+            <p className="text-xs text-muted-foreground">Rest Timer</p>
+            <button onClick={() => setRestActive(false)} className="mt-2 text-xs text-primary hover:underline">Cancel</button>
+          </>
+        ) : (
           <p className="text-xs text-muted-foreground">Rest Timer</p>
-          <button onClick={() => setRestActive(false)} className="mt-2 text-xs text-primary hover:underline">Skip</button>
+        )}
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+          {REST_PRESETS.map(d => (
+            <button key={d} onClick={() => setSelectedRestDuration(d)}
+              className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition-colors', selectedRestDuration === d ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent')}>
+              {d}s
+            </button>
+          ))}
         </div>
-      )}
+        <button onClick={() => startRest(selectedRestDuration)} className="mt-3 mx-auto rounded-xl bg-primary text-primary-foreground px-4 py-2 text-sm font-medium flex items-center justify-center gap-2 hover:bg-primary/90">
+          <Timer className="w-4 h-4" /> Start Timer
+        </button>
+      </div>
 
       {Object.values(exerciseGroups).map((g: any) => (
         <div key={g.id} className="bg-card rounded-xl p-4 mb-3" style={{ boxShadow: 'var(--shadow-sm)' }}>
-          <p className="font-medium mb-3">{g?.name}</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-medium">{g?.name}</p>
+            <button onClick={() => removeExercise(g.id, g?.name)} className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
           <div className="space-y-2">
             {(g?.sets ?? []).map((set: any) => (
               <div key={set.id} className="flex items-center gap-2">
@@ -151,6 +261,10 @@ export function SessionView({ sessionId }: { sessionId: string }) {
         </div>
       ))}
 
+      <button onClick={() => setShowExercisePicker(true)} className="w-full mb-3 rounded-xl border border-dashed border-border text-primary py-3 font-medium flex items-center justify-center gap-2 hover:bg-accent">
+        <Plus className="w-4 h-4" /> Add Exercise
+      </button>
+
       <div className="flex gap-2">
         <button onClick={() => setShowCancelConfirm(true)} className="rounded-xl border border-destructive/30 text-destructive py-3 px-4 font-medium flex items-center justify-center gap-2 hover:bg-destructive/10">
           <X className="w-4 h-4" /> Cancel
@@ -159,6 +273,45 @@ export function SessionView({ sessionId }: { sessionId: string }) {
           <Square className="w-4 h-4" /> Finish Workout
         </button>
       </div>
+
+      {showExercisePicker && (
+        <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => { setShowExercisePicker(false); setExerciseSearch('') }}>
+          <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <div className="p-4 border-b border-border flex items-center gap-2">
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <input autoFocus type="text" placeholder="Search exercises..." value={exerciseSearch} onChange={e => setExerciseSearch(e.target.value)} className="flex-1 bg-transparent text-sm focus:outline-none" />
+              <button onClick={() => { setShowExercisePicker(false); setExerciseSearch('') }}><X className="w-5 h-5 text-muted-foreground" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-2 pb-8" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {Object.entries(exercisesByBodyPart).map(([bodyPart, exs]) => (
+                <div key={bodyPart} className="mb-2">
+                  <p className="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground capitalize">{bodyPart}</p>
+                  {(exs as any[]).map((e: any) => (
+                    <div key={e.id} className="p-3 hover:bg-accent active:bg-accent rounded-xl cursor-pointer" onClick={() => addExercise(e)}>
+                      <p className="font-medium text-sm">{e.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{e.bodyPart} · {e.defaultSets}×{e.defaultReps}</p>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {filteredExercises.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No exercises found</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTemplatePrompt && templateChanged && (
+        <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={skipTemplateUpdate}>
+          <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6" onClick={e => e.stopPropagation()} style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <h3 className="font-display font-bold text-lg mb-2">Update Template?</h3>
+            <p className="text-sm text-muted-foreground mb-6">You&apos;ve changed the exercises in this workout. Update the template to match?</p>
+            <div className="flex gap-2">
+              <button onClick={skipTemplateUpdate} className="flex-1 rounded-xl border border-border py-3 font-medium hover:bg-accent">Skip</button>
+              <button onClick={updateTemplateAndFinish} className="flex-1 rounded-xl bg-primary text-primary-foreground py-3 font-medium hover:bg-primary/90">Update Template</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCancelConfirm && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center px-4" onClick={() => setShowCancelConfirm(false)}>

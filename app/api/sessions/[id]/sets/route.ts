@@ -28,6 +28,22 @@ export async function POST(
   return NextResponse.json(setLog)
 }
 
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
+
+  const url = new URL(request.url)
+  const exerciseId = url.searchParams.get('exerciseId')
+  if (!exerciseId) return NextResponse.json({ error: 'exerciseId required' }, { status: 400 })
+
+  await prisma.setLog.deleteMany({ where: { sessionId: id, exerciseId } })
+  return NextResponse.json({ success: true })
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
