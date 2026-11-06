@@ -4,7 +4,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth()
@@ -18,6 +18,40 @@ export async function GET(
     },
   })
   if (!template) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Optional: attach last 5 historical sessions per exercise for the detail view.
+  const url = new URL(request.url)
+  if (url.searchParams.get('history') === 'true') {
+    const exercisesWithHistory = await Promise.all(
+      template.exercises.map(async (te) => {
+        const logs = await prisma.setLog.findMany({
+          where: { exerciseId: te.exerciseId, session: { userId: session.user.id, finishedAt: { not: null } } },
+          include: { session: { select: { id: true, startedAt: true, name: true, durationSec: true } } },
+          orderBy: { session: { startedAt: 'desc' } },
+          take: 60,
+        })
+        // Group set logs into sessions (preserve session order = most recent first).
+        const bySession = new Map<string, { session: any; sets: any[] }>()
+        for (const log of logs) {
+          const sid = log.session.id
+          if (!bySession.has(sid)) bySession.set(sid, { session: log.session, sets: [] })
+          bySession.get(sid)!.sets.push({ setNumber: log.setNumber, weight: log.weight, reps: log.reps, completed: log.completed })
+        }
+        const history = Array.from(bySession.values())
+          .slice(0, 5)
+          .map(({ session: s, sets }) => ({
+            sessionId: s.id,
+            name: s.name,
+            date: s.startedAt,
+            durationSec: s.durationSec,
+            sets: sets.sort((a, b) => a.setNumber - b.setNumber),
+          }))
+        return { ...te, history }
+      })
+    )
+    return NextResponse.json({ ...template, exercises: exercisesWithHistory })
+  }
+
   return NextResponse.json(template)
 }
 
