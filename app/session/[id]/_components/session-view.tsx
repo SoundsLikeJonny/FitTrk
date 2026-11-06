@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Plus, Timer, Square, ChevronLeft, X, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -19,7 +19,6 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   const [allExercises, setAllExercises] = useState<any[]>([])
   const [exerciseSearch, setExerciseSearch] = useState('')
   const [templateChanged, setTemplateChanged] = useState(false)
-  const startRef = useRef(Date.now())
   const router = useRouter()
 
   const fetchSession = useCallback(async () => {
@@ -29,9 +28,13 @@ export function SessionView({ sessionId }: { sessionId: string }) {
 
   useEffect(() => { fetchSession() }, [fetchSession])
   useEffect(() => {
-    const i = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000)
+    if (!session?.startedAt) return
+    const startedMs = new Date(session.startedAt).getTime()
+    const update = () => setElapsed(Math.floor((Date.now() - startedMs) / 1000))
+    update()
+    const i = setInterval(update, 1000)
     return () => clearInterval(i)
-  }, [])
+  }, [session?.startedAt])
   useEffect(() => {
     if (!restActive) return
     const i = setInterval(() => {
