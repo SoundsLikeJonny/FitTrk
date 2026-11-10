@@ -46,6 +46,14 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "abacusai1792816416"
+    "scheme": "abacusai1792816416",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/<EAS_PROJECT_ID>",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD"
+    }
   }
 }
