@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Plus, Timer, Square, ChevronLeft, X, Trash2, Search } from 'lucide-react'
+import { Check, Plus, Timer, Square, ChevronLeft, ChevronUp, ChevronDown, X, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -131,6 +131,34 @@ export function SessionView({ sessionId }: { sessionId: string }) {
     (session?.setLogs ?? []).map((s: any) => s?.exerciseId).filter(Boolean)
   )) as string[]
 
+  const moveExercise = async (exerciseId: string, direction: -1 | 1) => {
+    const ids = currentExerciseIds()
+    const from = ids.indexOf(exerciseId)
+    const to = from + direction
+    if (from < 0 || to < 0 || to >= ids.length) return
+    const next = [...ids]
+    next.splice(from, 1)
+    next.splice(to, 0, exerciseId)
+
+    // Reorder locally first so the list moves immediately, then persist.
+    const rank = new Map(next.map((id, i) => [id, i]))
+    setSession((prev: any) => prev ? {
+      ...prev,
+      setLogs: [...(prev.setLogs ?? [])].sort((a: any, b: any) => {
+        const ra = rank.get(a?.exerciseId) ?? 0
+        const rb = rank.get(b?.exerciseId) ?? 0
+        return ra !== rb ? ra - rb : (a?.setNumber ?? 0) - (b?.setNumber ?? 0)
+      }),
+    } : prev)
+
+    const res = await fetch(`/api/sessions/${sessionId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exerciseOrder: next }),
+    })
+    if (!res.ok) toast.error('Could not save the new exercise order')
+    fetchSession()
+  }
+
   const finishWorkout = async () => {
     const completedSets = (session?.setLogs ?? []).filter((s: any) => s?.completed)
     if (completedSets.length === 0) {
@@ -150,7 +178,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
     const templateExerciseIds: string[] = (template?.exercises ?? []).map((ex: any) => ex?.exerciseId)
     const sessionExerciseIds = currentExerciseIds()
     const changed = templateExerciseIds.length !== sessionExerciseIds.length ||
-      templateExerciseIds.some(id => !sessionExerciseIds.includes(id))
+      templateExerciseIds.some((id, i) => id !== sessionExerciseIds[i])
     if (!changed) {
       await completeSession()
       return
@@ -161,9 +189,20 @@ export function SessionView({ sessionId }: { sessionId: string }) {
 
   const updateTemplateAndFinish = async () => {
     if (session?.templateId) {
+      // Keep each exercise's configured sets/reps/weight; only the order changes.
+      const res = await fetch(`/api/workouts/${session.templateId}`)
+      const template = res.ok ? await res.json() : null
+      const byExercise = new Map<string, any>(
+        (template?.exercises ?? []).map((ex: any) => [ex?.exerciseId, ex])
+      )
       await fetch(`/api/workouts/${session.templateId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exercises: currentExerciseIds().map(id => ({ exerciseId: id, sets: 3, reps: 10, weight: 0 })) }),
+        body: JSON.stringify({
+          exercises: currentExerciseIds().map(id => {
+            const prev = byExercise.get(id)
+            return { exerciseId: id, sets: prev?.sets ?? 3, reps: prev?.reps ?? 10, weight: prev?.weight ?? 0 }
+          }),
+        }),
       })
     }
     setShowTemplatePrompt(false)
@@ -236,13 +275,25 @@ export function SessionView({ sessionId }: { sessionId: string }) {
         </button>
       </div>
 
-      {Object.values(exerciseGroups).map((g: any) => (
+      {Object.values(exerciseGroups).map((g: any, index: number, groups: any[]) => (
         <div key={g.id} className="bg-card rounded-xl p-4 mb-3" style={{ boxShadow: 'var(--shadow-sm)' }}>
           <div className="flex items-center justify-between mb-3">
             <p className="font-medium">{g?.name}</p>
-            <button onClick={() => removeExercise(g.id, g?.name)} className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => moveExercise(g.id, -1)} disabled={index === 0}
+                aria-label={`Move ${g?.name} up`}
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:hover:bg-transparent">
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button onClick={() => moveExercise(g.id, 1)} disabled={index === groups.length - 1}
+                aria-label={`Move ${g?.name} down`}
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:hover:bg-transparent">
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              <button onClick={() => removeExercise(g.id, g?.name)} className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             {(g?.sets ?? []).map((set: any) => (

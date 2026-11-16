@@ -14,7 +14,7 @@ export async function GET(
   const ws = await prisma.workoutSession.findFirst({
     where: { id, userId: session.user.id },
     include: {
-      setLogs: { include: { exercise: true }, orderBy: [{ exerciseId: 'asc' }, { setNumber: 'asc' }] },
+      setLogs: { include: { exercise: true }, orderBy: [{ order: 'asc' }, { setNumber: 'asc' }] },
     },
   })
   if (!ws) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -30,7 +30,19 @@ export async function PUT(
   const { id } = await params
 
   const body = await request.json()
-  const { finishedAt, durationSec, notes, sets } = body ?? {}
+  const { finishedAt, durationSec, notes, sets, exerciseOrder } = body ?? {}
+
+  // Persist the exercise order the user arranged mid-workout.
+  if (Array.isArray(exerciseOrder) && exerciseOrder.length > 0) {
+    await prisma.$transaction(
+      exerciseOrder.map((exerciseId: string, index: number) =>
+        prisma.setLog.updateMany({
+          where: { sessionId: id, exerciseId, session: { userId: session.user.id } },
+          data: { order: index },
+        })
+      )
+    )
+  }
 
   // Update sets if provided
   if (sets && Array.isArray(sets)) {
@@ -57,7 +69,7 @@ export async function PUT(
       notes: notes ?? undefined,
     },
     include: {
-      setLogs: { include: { exercise: true }, orderBy: [{ exerciseId: 'asc' }, { setNumber: 'asc' }] },
+      setLogs: { include: { exercise: true }, orderBy: [{ order: 'asc' }, { setNumber: 'asc' }] },
     },
   })
   return NextResponse.json(updated)

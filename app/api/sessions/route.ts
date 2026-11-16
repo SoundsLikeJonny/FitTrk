@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const activeSession = await prisma.workoutSession.findFirst({
       where: { userId: session.user.id, finishedAt: null },
       include: {
-        setLogs: { include: { exercise: true }, orderBy: [{ exerciseId: 'asc' }, { setNumber: 'asc' }] },
+        setLogs: { include: { exercise: true }, orderBy: [{ order: 'asc' }, { setNumber: 'asc' }] },
         template: true,
       },
       orderBy: { startedAt: 'desc' },
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const sessions = await prisma.workoutSession.findMany({
     where: { userId: session.user.id, finishedAt: { not: null } },
     include: {
-      setLogs: { include: { exercise: true }, orderBy: { setNumber: 'asc' } },
+      setLogs: { include: { exercise: true }, orderBy: [{ order: 'asc' }, { setNumber: 'asc' }] },
       template: true,
     },
     orderBy: { startedAt: 'desc' },
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     if (template) {
       workoutName = template.name
       // Get previous performance for each exercise
-      for (const te of template.exercises ?? []) {
+      for (const [index, te] of (template.exercises ?? []).entries()) {
         for (let s = 1; s <= te.sets; s++) {
           // Find previous best for this exercise
           const prevLog = await prisma.setLog.findFirst({
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
           })
           setLogsData.push({
             exerciseId: te.exerciseId,
+            order: index,
             setNumber: s,
             weight: prevLog?.weight ?? te.weight,
             reps: prevLog?.reps ?? te.reps,
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
       },
     },
     include: {
-      setLogs: { include: { exercise: true }, orderBy: { setNumber: 'asc' } },
+      setLogs: { include: { exercise: true }, orderBy: [{ order: 'asc' }, { setNumber: 'asc' }] },
     },
   })
   return NextResponse.json(workoutSession)

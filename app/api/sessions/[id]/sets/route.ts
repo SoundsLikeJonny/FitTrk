@@ -14,10 +14,26 @@ export async function POST(
   const body = await request.json()
   const { exerciseId, setNumber, weight, reps } = body ?? {}
 
+  // Keep the exercise's existing position, or append a newly added exercise to the end.
+  const existing = await prisma.setLog.findFirst({
+    where: { sessionId: id, exerciseId },
+    select: { order: true },
+  })
+  let order = existing?.order
+  if (order === undefined) {
+    const last = await prisma.setLog.findFirst({
+      where: { sessionId: id },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    })
+    order = (last?.order ?? -1) + 1
+  }
+
   const setLog = await prisma.setLog.create({
     data: {
       sessionId: id,
       exerciseId,
+      order,
       setNumber: setNumber ?? 1,
       weight: weight ?? 0,
       reps: reps ?? 0,
